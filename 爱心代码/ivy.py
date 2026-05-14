@@ -1,3 +1,12 @@
+'''
+Date: 2026-05-12 00:50:07
+LastEditors: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
+LastEditTime: 2026-05-15 00:20:07
+FilePath: \-\爱心代码\ivy.py
+Description: 
+
+Copyright (c) 2026 by ${git_name_email}, All Rights Reserved. 
+'''
 import tkinter as tk
 import tkinter.font as tkfont
 import random
@@ -85,7 +94,6 @@ def update():
             if y1 < 0 or y2 > screen_height:
                 item['dy'] = -dy
     root.after(REFRESH_DELAY, update)
-
 # ========== 点击退出 ==========
 def on_click(event=None):
     root.destroy()

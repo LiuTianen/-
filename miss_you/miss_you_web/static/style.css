@@ -1,0 +1,60 @@
+*{
+    margin:0;
+    padding:0;
+    overflow:hidden;
+    font-family:"Microsoft YaHei";
+}
+
+body{
+    background:black;
+}
+
+canvas{
+    position:absolute;
+    top:0;
+    left:0;
+}
+
+.center-box{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    text-align:center;
+    z-index:10;
+}
+
+#title{
+    color:white;
+    font-size:60px;
+    animation: glow 2s infinite alternate;
+}
+
+button{
+    margin-top:30px;
+    padding:15px 40px;
+    border:none;
+    border-radius:50px;
+    background:#ff4d6d;
+    color:white;
+    font-size:22px;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+button:hover{
+    transform:scale(1.1);
+    box-shadow:0 0 30px #ff4d6d;
+}
+
+@keyframes glow{
+    from{
+        text-shadow:0 0 10px pink;
+    }
+    to{
+        text-shadow:
+        0 0 20px pink,
+        0 0 40px red,
+        0 0 60px hotpink;
+    }
+}

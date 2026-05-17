@@ -1,0 +1,36 @@
+<!--
+ * @Date: 2026-05-17 23:49:24
+ * @LastEditors: error: error: git config user.name & please set dead value or install git && error: git config user.email & please set dead value or install git & please set dead value or install git
+ * @LastEditTime: 2026-05-17 23:55:54
+ * @FilePath: \-\miss_you\miss_you_web\templates\index.html
+ * @Description: 
+ * 
+ * Copyright (c) 2026 by ${git_name_email}, All Rights Reserved. 
+-->
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>想念你 ❤️</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div class="center-box">
+    <h1 id="title">我想你 ❤️</h1>
+
+    <button id="loveBtn">
+        点击查看思念
+    </button>
+</div>
+
+<audio autoplay loop>
+    <source src="{{ url_for('static', filename='music.mp3') }}" type="audio/mpeg">
+</audio>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+</html>

@@ -1,48 +1,41 @@
 import tkinter as tk
 import random
 import math
-import time
 
-# =========================
-# 终极浪漫文字烟花版 ❤️
-# 飞散 + 渐隐 + 缩小 + 连续烟花
-# =========================
+# ==========================================
+# 心形数学函数 · 浪漫文字烟花优化版
+# ==========================================
 
-# -------- 配置 --------
+# ---------- 配置 ----------
 TEXT_POOL = [
     "我爱你 ❤️",
-    "喜欢你 ✨",
     "想你了 💕",
-    "永远爱你 💖",
-    "你是我的光 🌙",
-    "一直陪着你 🌸",
+    "永远爱你 ✨",
+    "你是唯一 💖",
+    "陪你很久 🌸",
 ]
 
-WINDOW_BG = "black"
+BG_COLOR = "black"
 
-PARTICLE_COUNT = 50          # 每波烟花文字数量
-FIREWORK_INTERVAL = 2200      # 每波间隔(ms)
+PARTICLE_COUNT = 50
 
-FONT_MAX_SIZE = 28
-FONT_MIN_SIZE = 8
+REFRESH_DELAY = 13
+FIREWORK_INTERVAL = 2400
 
-SPEED_MIN = 2
-SPEED_MAX = 8
+FONT_MAX = 30
+FONT_MIN = 8
 
-LIFETIME = 100                # 粒子寿命(帧)
+LIFETIME = 120
 
-REFRESH_DELAY = 16            # ≈60FPS
+HEART_SCALE = 18
 
-GRAVITY = 0.03                # 微重力
-DRAG = 0.992                  # 阻力
-
-
-# -------- 创建窗口 --------
+# ---------- 窗口 ----------
 root = tk.Tk()
-root.title("Romantic Fireworks")
+
+root.title("Heart Firework")
 
 root.attributes("-fullscreen", True)
-root.configure(bg=WINDOW_BG)
+root.configure(bg=BG_COLOR)
 
 screen_w = root.winfo_screenwidth()
 screen_h = root.winfo_screenheight()
@@ -51,84 +44,104 @@ canvas = tk.Canvas(
     root,
     width=screen_w,
     height=screen_h,
-    bg=WINDOW_BG,
+    bg=BG_COLOR,
     highlightthickness=0
 )
+
 canvas.pack()
 
 particles = []
 
 
-# -------- 工具函数 --------
+# ---------- 工具 ----------
+COLORS = [
+    "#FF1493",
+    "#FF69B4",
+    "#FFB6C1",
+    "#FFD700",
+    "#FF6347",
+    "#FFFFFF",
+    "#DA70D6",
+    "#00BFFF",
+]
+
+# 预计算渐隐颜色表：避免每帧进行 hex 解析和字符串拼接
+FADE_TABLE = {}
+for c in COLORS:
+    r = int(c[1:3], 16)
+    g = int(c[3:5], 16)
+    b = int(c[5:7], 16)
+    table = []
+    for life in range(LIFETIME, -1, -1):
+        ratio = life / LIFETIME
+        table.append(f"#{int(r * ratio):02x}{int(g * ratio):02x}{int(b * ratio):02x}")
+    FADE_TABLE[c] = table
+
+
 def random_color():
-    colors = [
-        "#FF69B4",
-        "#FF1493",
-        "#FFB6C1",
-        "#FFD700",
-        "#00BFFF",
-        "#7CFC00",
-        "#FF4500",
-        "#DA70D6",
-        "#00FA9A",
-        "#FFFFFF",
-    ]
-    return random.choice(colors)
+    return random.choice(COLORS)
 
 
-def fade_color(hex_color, ratio):
-    """
-    根据 ratio 渐隐颜色
-    ratio: 0~1
-    """
-    ratio = max(0, min(1, ratio))
+# ==========================================
+# 心形数学函数
+#
+# x = 16 sin³(t)
+# y = 13 cos(t) - 5 cos(2t) - 2 cos(3t) - cos(4t)
+#
+# ==========================================
+def heart_function(t):
+    x = 16 * math.sin(t) ** 3
 
-    r = int(int(hex_color[1:3], 16) * ratio)
-    g = int(int(hex_color[3:5], 16) * ratio)
-    b = int(int(hex_color[5:7], 16) * ratio)
+    y = (
+        13 * math.cos(t)
+        - 5 * math.cos(2 * t)
+        - 2 * math.cos(3 * t)
+        - math.cos(4 * t)
+    )
 
-    return f"#{r:02x}{g:02x}{b:02x}"
+    return x, y
 
 
-# -------- 创建烟花 --------
-def create_firework(x=None, y=None):
-
-    if x is None:
-        x = random.randint(
-            screen_w // 4,
-            screen_w * 3 // 4
+# ---------- 创建心形烟花 ----------
+def create_heart_firework(cx=None, cy=None):
+    if cx is None:
+        cx = random.randint(
+            screen_w // 3,
+            screen_w * 2 // 3
         )
 
-    if y is None:
-        y = random.randint(
-            screen_h // 4,
-            screen_h * 3 // 4
+    if cy is None:
+        cy = random.randint(
+            screen_h // 3,
+            screen_h * 2 // 3
         )
 
     text = random.choice(TEXT_POOL)
 
-    for _ in range(PARTICLE_COUNT):
+    for i in range(PARTICLE_COUNT):
+        t = (2 * math.pi / PARTICLE_COUNT) * i
 
-        angle = random.uniform(0, math.pi * 2)
+        hx, hy = heart_function(t)
 
-        speed = random.uniform(
-            SPEED_MIN,
-            SPEED_MAX
-        )
+        # 缩放
+        hx *= HEART_SCALE
+        hy *= HEART_SCALE
 
-        dx = math.cos(angle) * speed
-        dy = math.sin(angle) * speed
+        # 随机扰动
+        hx += random.uniform(-8, 8)
+        hy += random.uniform(-8, 8)
+
+        # 初始速度
+        dx = hx * 0.08
+        dy = -hy * 0.08
 
         color = random_color()
 
-        size = random.randint(
-            FONT_MAX_SIZE - 6,
-            FONT_MAX_SIZE
-        )
+        size = random.randint(FONT_MIN, FONT_MAX)
 
         item = canvas.create_text(
-            x,
-            y,
+            cx,
+            cy,
             text=text,
             fill=color,
             font=("微软雅黑", size, "bold")
@@ -136,89 +149,61 @@ def create_firework(x=None, y=None):
 
         particles.append({
             "id": item,
-            "x": x,
-            "y": y,
+            "x": cx,
+            "y": cy,
             "dx": dx,
             "dy": dy,
             "life": LIFETIME,
-            "max_life": LIFETIME,
-            "size": size,
             "base_color": color,
-            "text": text
         })
 
 
-# -------- 更新动画 --------
+# ---------- 更新动画 ----------
 def update():
-
-    remove_list = []
+    remove_ids = []
+    remove_particles = []
 
     for p in particles:
-
-        # 生命周期
         p["life"] -= 1
 
         if p["life"] <= 0:
-            remove_list.append(p)
+            remove_ids.append(p["id"])
+            remove_particles.append(p)
             continue
 
-        # 生命比例
-        ratio = p["life"] / p["max_life"]
+        # 缓慢阻尼
+        p["dx"] *= 0.992
+        p["dy"] *= 0.992
 
-        # 物理运动
-        p["dx"] *= DRAG
-        p["dy"] *= DRAG
-
-        p["dy"] += GRAVITY
+        # 微重力
+        p["dy"] += 0.02
 
         p["x"] += p["dx"]
         p["y"] += p["dy"]
 
-        # 渐隐
-        color = fade_color(
-            p["base_color"],
-            ratio
-        )
+        # 查表获取渐隐颜色
+        color = FADE_TABLE[p["base_color"]][LIFETIME - p["life"]]
 
-        # 渐小
-        size = int(
-            FONT_MIN_SIZE +
-            (p["size"] - FONT_MIN_SIZE) * ratio
-        )
+        # 只更新坐标和颜色，不再每帧修改 font（极大提升性能）
+        canvas.coords(p["id"], p["x"], p["y"])
+        canvas.itemconfig(p["id"], fill=color)
 
-        size = max(FONT_MIN_SIZE, size)
-
-        # 更新位置
-        canvas.coords(
-            p["id"],
-            p["x"],
-            p["y"]
-        )
-
-        # 更新样式
-        canvas.itemconfig(
-            p["id"],
-            fill=color,
-            font=("微软雅黑", size, "bold")
-        )
-
-    # 删除死亡粒子
-    for p in remove_list:
-        canvas.delete(p["id"])
+    # 批量删除已消亡的粒子
+    if remove_ids:
+        canvas.delete(*remove_ids)
+    for p in remove_particles:
         particles.remove(p)
 
     root.after(REFRESH_DELAY, update)
 
 
-# -------- 连续烟花 --------
+# ---------- 连续烟花 ----------
 def loop_firework():
+    create_heart_firework()
 
-    # 随机位置连续爆炸
-    create_firework()
-
-    # 偶尔中心大爆炸
-    if random.random() < 0.3:
-        create_firework(
+    # 中央超级爱心爆炸
+    if random.random() < 0.35:
+        create_heart_firework(
             screen_w // 2,
             screen_h // 2
         )
@@ -229,13 +214,13 @@ def loop_firework():
     )
 
 
-# -------- ESC退出 --------
+# ---------- ESC退出 ----------
 def exit_app(event):
     root.destroy()
 
 root.bind("<Escape>", exit_app)
 
-# -------- 启动 --------
+# ---------- 启动 ----------
 loop_firework()
 update()
 

@@ -70,6 +70,20 @@ python3 code-rain/code_rain.py 张三     # Python 版
 open code-rain/index.html               # Web 版
 ```
 
+### 💕 Love Rain · cmatrix --love
+黑客帝国风格，但下落的是 ❤️🌸💕 — 五种 emoji 主题随心切换。
+
+- [`love-rain/love_rain.py`](love-rain/love_rain.py) — Python turtle 版（纯内置库）
+- [`love-rain/index.html`](love-rain/index.html) — Web Canvas 全屏交互版
+  - 🖱️ 点击绽放心动（粒子炸裂）
+  - ⌨️ 空格切换 5 种主题（全模式/红心/花雨/星尘/粉彩）
+  - 🌫️ 拖尾 + 光晕 + 正弦摇摆物理
+
+```bash
+python3 love-rain/love_rain.py     # Python 版
+open love-rain/index.html          # Web 版
+```
+
 ### ❤️ 爱心代码
 多种方式绘制爱心的 Python 脚本集合。
 

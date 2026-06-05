@@ -55,6 +55,20 @@ python3 cloud/cloud.py           # 随机云朵
 python3 cloud/cloud.py 42 dawn   # 种子 + 主题
 ```
 
+### 💚 代码雨表白 · Code Rain Confession
+输入名字 → Matrix 代码雨 → 弹簧物理汇聚成名字 → 浪漫揭示。
+
+- [`code-rain/index.html`](code-rain/index.html) — Web Canvas 全屏交互版
+  - ⌨️ 输入 TA 的名字 + Enter
+  - 🌧️ Matrix 代码雨（日文片假名 + 数字 + 符号）
+  - 🧲 弹簧物理汇聚 → 颜色绿渐变粉
+  - ❤️ 名字发光成形 + 揭示文案
+
+```bash
+# 浏览器直接打开即可
+open code-rain/index.html
+```
+
 ### ❤️ 爱心代码
 多种方式绘制爱心的 Python 脚本集合。
 

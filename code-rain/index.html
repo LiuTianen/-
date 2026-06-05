@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>💚 代码雨表白 · Code Rain Confession</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:#000;overflow:hidden;
+    font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;
+    user-select:none;-webkit-user-select:none;
+    cursor:default;
+  }
+  canvas{display:block;position:fixed;top:0;left:0;}
+
+  /* ── 输入界面 ── */
+  #overlay{
+    position:fixed;inset:0;z-index:10;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at center,rgba(0,0,0,.7),#000);
+    backdrop-filter:blur(2px);
+    transition:opacity .8s,visibility .8s;
+  }
+  #overlay.hidden{opacity:0;visibility:hidden;pointer-events:none;}
+  #overlay h1{
+    font-family:"Georgia","Noto Serif SC",serif;
+    font-size:32px;color:#c9a96e;font-weight:400;
+    letter-spacing:4px;margin-bottom:6px;
+    text-shadow:0 0 30px rgba(201,169,110,.3);
+  }
+  #overlay .hint{
+    font-size:12px;color:#555;letter-spacing:2px;margin-bottom:24px;
+  }
+  #overlay .input-wrap{
+    position:relative;display:flex;align-items:center;
+  }
+  #overlay input{
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.12);
+    color:#ccc;font-size:24px;padding:12px 20px;
+    border-radius:8px;width:260px;text-align:center;
+    font-family:inherit;letter-spacing:4px;
+    outline:none;transition:all .3s;
+  }
+  #overlay input:focus{
+    border-color:rgba(201,169,110,.5);
+    box-shadow:0 0 20px rgba(201,169,110,.1);
+    color:#fff;
+  }
+  #overlay input::placeholder{color:#444;letter-spacing:2px;}
+  #overlay button{
+    margin-top:20px;padding:10px 32px;
+    border-radius:24px;border:none;
+    background:rgba(201,169,110,.15);
+    color:#c9a96e;font-size:15px;cursor:pointer;
+    font-family:inherit;letter-spacing:3px;
+    transition:all .3s;border:1px solid rgba(201,169,110,.2);
+  }
+  #overlay button:hover{
+    background:rgba(201,169,110,.25);
+    box-shadow:0 0 24px rgba(201,169,110,.2);
+    transform:scale(1.03);
+  }
+
+  /* ── 最终揭示 ── */
+  #reveal{
+    position:fixed;inset:0;z-index:5;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    pointer-events:none;
+    opacity:0;transition:opacity 2s;
+  }
+  #reveal.show{opacity:1;}
+  #reveal .sub{
+    font-size:16px;color:rgba(255,255,255,.5);
+    letter-spacing:4px;margin-top:12px;
+    text-shadow:0 0 10px rgba(255,100,130,.3);
+  }
+  #reveal .heart{font-size:36px;margin-top:16px;animation:pulse 1.5s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
+
+  /* ── 重来按钮 ── */
+  #restart{
+    position:fixed;bottom:30px;left:50%;transform:translateX(-50%);
+    z-index:20;padding:8px 24px;
+    border-radius:20px;border:1px solid rgba(255,255,255,.1);
+    background:rgba(255,255,255,.04);color:rgba(255,255,255,.3);
+    font-size:12px;cursor:pointer;letter-spacing:2px;
+    font-family:inherit;transition:all .3s;
+    opacity:0;pointer-events:none;
+  }
+  #restart.show{opacity:1;pointer-events:auto;}
+  #restart:hover{color:#fff;border-color:rgba(255,255,255,.3);}
+</style>
+</head>
+<body>
+
+<!-- 输入界面 -->
+<div id="overlay">
+  <h1>代码雨表白</h1>
+  <p class="hint">— Code Rain Confession —</p>
+  <div class="input-wrap">
+    <input id="nameInput" type="text" placeholder="输入 TA 的名字..."
+           maxlength="8" autocomplete="off">
+  </div>
+  <button id="startBtn">✨ 开 始 ✨</button>
+</div>
+
+<!-- 最终揭示 -->
+<div id="reveal">
+  <div class="sub" id="revealSub"></div>
+  <div class="heart">❤️</div>
+</div>
+
+<!-- Canvas -->
+<canvas id="canvas"></canvas>
+
+<!-- 重来 -->
+<button id="restart">🔄 再来一次</button>
+
+<script>
+// ═══════════════════════════════════════════
+// 字符集（Matrix 风格）
+// ═══════════════════════════════════════════
+const CHARS = (
+  '0123456789' +
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' +
+  'ｦｧｨｩｪｫｬｭｮｯｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ' +
+  '+-*/=<>[]{}|;:!@#$%^&' +
+  '日月山川木水火土天地風雲雨雪星'
+);
+
+// ═══════════════════════════════════════════
+// Canvas 初始化
+// ═══════════════════════════════════════════
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ═══════════════════════════════════════════
+// 状态机
+// ═══════════════════════════════════════════
+const STATE = { INPUT: 'input', RAIN: 'rain', CONVERGING: 'converging', FORMED: 'formed' };
+let phase = STATE.INPUT;
+let drops = [];           // 雨滴数组
+let targets = [];         // 目标位置（名字像素采样）
+let rainStart = 0;
+let convergeStart = 0;
+let currentName = '';
+let animFrame = null;
+let trailOpacity = 0.08;  // 拖尾透明度
+
+// ═══════════════════════════════════════════
+// 名字像素采样
+// ═══════════════════════════════════════════
+function sampleName(name) {
+  const off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  const octx = off.getContext('2d');
+
+  // 动态字号
+  const len = name.length;
+  let fontSize;
+  if (len <= 1) fontSize = Math.min(220, W * 0.25);
+  else if (len <= 2) fontSize = Math.min(180, W * 0.2);
+  else if (len <= 3) fontSize = Math.min(140, W * 0.16);
+  else if (len <= 4) fontSize = Math.min(110, W * 0.12);
+  else fontSize = Math.min(80, W * 0.09);
+
+  octx.font = `bold ${fontSize}px "PingFang SC","Noto Sans SC","STSong","SimSun",sans-serif`;
+  octx.fillStyle = '#fff';
+  octx.textAlign = 'center';
+  octx.textBaseline = 'middle';
+  octx.fillText(name, W / 2, H / 2 - 20);
+
+  const imageData = octx.getImageData(0, 0, W, H);
+  const data = imageData.data;
+  const pixels = [];
+  const step = 5; // 采样步长
+
+  for (let y = 0; y < H; y += step) {
+    for (let x = 0; x < W; x += step) {
+      const idx = (y * W + x) * 4;
+      if (data[idx + 3] > 100) {
+        pixels.push({ x, y });
+      }
+    }
+  }
+  return pixels;
+}
+
+// ═══════════════════════════════════════════
+// 随机字符
+// ═══════════════════════════════════════════
+function randChar() {
+  return CHARS[Math.floor(Math.random() * CHARS.length)];
+}
+
+// ═══════════════════════════════════════════
+// 颜色插值
+// ═══════════════════════════════════════════
+function lerpColor(c1, c2, t) {
+  return [
+    Math.round(c1[0] + (c2[0] - c1[0]) * t),
+    Math.round(c1[1] + (c2[1] - c1[1]) * t),
+    Math.round(c1[2] + (c2[2] - c1[2]) * t),
+  ];
+}
+
+const COLOR_RAIN   = [0, 255, 65];    // Matrix 绿
+const COLOR_TARGET = [255, 120, 150]; // 浪漫粉
+
+// ═══════════════════════════════════════════
+// 创建雨滴
+// ═══════════════════════════════════════════
+function createDrops(name) {
+  targets = sampleName(name);
+  const count = targets.length;
+  drops = [];
+
+  for (let i = 0; i < count; i++) {
+    drops.push({
+      // 当前位置
+      x: Math.random() * W,
+      y: Math.random() * -H * 0.8,  // 从屏幕上方开始
+      // 目标位置
+      tx: targets[i].x,
+      ty: targets[i].y,
+      // 速度
+      vx: 0, vy: 0,
+      // 下落速度（各不相同）
+      fallSpeed: 1.2 + Math.random() * 3.5,
+      // 当前显示字符
+      char: randChar(),
+      // 字符变换计时器
+      charTimer: Math.random() * 20,
+      charInterval: 8 + Math.random() * 25,
+      // 亮度
+      brightness: 0.3 + Math.random() * 0.7,
+      // 大小
+      fontSize: 12 + Math.random() * 6,
+    });
+  }
+}
+
+// ═══════════════════════════════════════════
+// 雨阶段更新
+// ═══════════════════════════════════════════
+function updateRain() {
+  for (const d of drops) {
+    // 下落
+    d.y += d.fallSpeed;
+    // 出底重置
+    if (d.y > H + 50) {
+      d.y = -(20 + Math.random() * 100);
+      d.x = Math.random() * W;
+    }
+    // 随机水平漂移
+    d.x += (Math.random() - 0.5) * 0.5;
+    // 边界
+    if (d.x < 0) d.x = W;
+    if (d.x > W) d.x = 0;
+    // 字符变换
+    d.charTimer += 0.16;
+    if (d.charTimer > d.charInterval) {
+      d.charTimer = 0;
+      d.char = randChar();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
+// 汇聚阶段更新（弹簧物理）
+// ═══════════════════════════════════════════
+const SPRING = 0.012;
+const DAMPING = 0.88;
+
+function updateConverge() {
+  let allSettled = true;
+  const elapsed = (performance.now() - convergeStart) / 1000;
+
+  for (const d of drops) {
+    // 弹簧力
+    const dx = d.tx - d.x;
+    const dy = d.ty - d.y;
+    d.vx += dx * SPRING;
+    d.vy += dy * SPRING;
+    // 阻尼
+    d.vx *= DAMPING;
+    d.vy *= DAMPING;
+    // 更新位置
+    d.x += d.vx;
+    d.y += d.vy;
+
+    // 字符逐渐变成目标名字的字符
+    if (Math.random() < 0.08) {
+      d.char = currentName[Math.floor(Math.random() * currentName.length)] || randChar();
+    }
+
+    // 检查是否稳定
+    if (Math.abs(dx) > 1.5 || Math.abs(dy) > 1.5 || Math.abs(d.vx) > 0.3 || Math.abs(d.vy) > 0.3) {
+      allSettled = false;
+    }
+  }
+
+  // 全部稳定 → 进入 formed 阶段
+  if (allSettled && elapsed > 1.5) {
+    phase = STATE.FORMED;
+    trailOpacity = 0.015; // 更长的拖尾，让名字更亮
+    document.getElementById('reveal').classList.add('show');
+    document.getElementById('restart').classList.add('show');
+  }
+}
+
+// ═══════════════════════════════════════════
+// 绘制
+// ═══════════════════════════════════════════
+function render() {
+  const now = performance.now();
+
+  // 拖尾效果：半透明黑色覆盖
+  ctx.fillStyle = `rgba(0,0,0,${trailOpacity})`;
+  ctx.fillRect(0, 0, W, H);
+
+  if (phase === STATE.INPUT) {
+    // 输入阶段显示微弱背景雨丝
+    if (Math.random() < 0.3) {
+      ctx.fillStyle = 'rgba(0,255,65,0.08)';
+      ctx.font = '13px monospace';
+      ctx.fillText(randChar(), Math.random()*W, Math.random()*H);
+    }
+    animFrame = requestAnimationFrame(render);
+    return;
+  }
+
+  // 计算颜色混合比例
+  let colorMix = 0;
+  if (phase === STATE.CONVERGING) {
+    const elapsed = (now - convergeStart) / 1000;
+    colorMix = Math.min(1, elapsed / 3); // 3秒内从绿渐变到粉
+  } else if (phase === STATE.FORMED) {
+    colorMix = 1;
+  }
+
+  for (const d of drops) {
+    if (d.y < -50 || d.y > H + 50) continue;
+
+    const [cr, cg, cb] = lerpColor(COLOR_RAIN, COLOR_TARGET, colorMix);
+    const alpha = d.brightness * (0.5 + 0.5 * colorMix);
+    const r = Math.min(255, Math.round(cr * alpha));
+    const g = Math.min(255, Math.round(cg * alpha));
+    const b = Math.min(255, Math.round(cb * alpha));
+    const a = 0.6 + alpha * 0.4;
+
+    ctx.font = `${d.fontSize}px monospace`;
+    ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+
+    // 汇聚阶段：头部更亮
+    if (phase === STATE.CONVERGING || phase === STATE.FORMED) {
+      ctx.shadowColor = `rgba(${cr},${cg},${cb},0.6)`;
+      ctx.shadowBlur = 3 + 2 * colorMix;
+    }
+
+    ctx.fillText(d.char, d.x, d.y);
+    ctx.shadowBlur = 0;
+  }
+
+  // FORMED 阶段：增强光晕
+  if (phase === STATE.FORMED) {
+    // 在名字周围画微光
+    if (targets.length > 0) {
+      const cx = targets.reduce((s, t) => s + t.x, 0) / targets.length;
+      const cy = targets.reduce((s, t) => s + t.y, 0) / targets.length;
+      const grad = ctx.createRadialGradient(cx, cy, 20, cx, cy, 250);
+      grad.addColorStop(0, 'rgba(255,120,150,0.04)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  animFrame = requestAnimationFrame(render);
+}
+
+// ═══════════════════════════════════════════
+// 游戏循环
+// ═══════════════════════════════════════════
+function gameLoop() {
+  const now = performance.now();
+
+  if (phase === STATE.RAIN) {
+    // 自动触发汇聚
+    if (now - rainStart > 5500) {
+      startConverge();
+      return;
+    }
+    updateRain();
+  } else if (phase === STATE.CONVERGING) {
+    updateConverge();
+  }
+  // FORMED 阶段不更新位置，只呼吸渲染
+}
+
+// ═══════════════════════════════════════════
+// 阶段切换
+// ═══════════════════════════════════════════
+function startRain(name) {
+  currentName = name;
+  createDrops(name);
+  phase = STATE.RAIN;
+  trailOpacity = 0.08;
+  rainStart = performance.now();
+
+  // 隐藏输入界面
+  document.getElementById('overlay').classList.add('hidden');
+  document.getElementById('reveal').classList.remove('show');
+  document.getElementById('restart').classList.remove('show');
+}
+
+function startConverge() {
+  phase = STATE.CONVERGING;
+  convergeStart = performance.now();
+  trailOpacity = 0.04; // 拖尾变长
+
+  // 给每个雨滴指定目标
+  for (let i = 0; i < drops.length; i++) {
+    drops[i].tx = targets[i].x;
+    drops[i].ty = targets[i].y;
+  }
+
+  document.getElementById('revealSub').textContent =
+    `你的名字，是我见过最美的代码`;
+}
+
+function restart() {
+  phase = STATE.INPUT;
+  drops = [];
+  targets = [];
+  document.getElementById('overlay').classList.remove('hidden');
+  document.getElementById('reveal').classList.remove('show');
+  document.getElementById('restart').classList.remove('show');
+  document.getElementById('nameInput').value = '';
+  document.getElementById('nameInput').focus();
+  trailOpacity = 0.08;
+}
+
+// ═══════════════════════════════════════════
+// 事件
+// ═══════════════════════════════════════════
+function doStart() {
+  const name = document.getElementById('nameInput').value.trim();
+  if (!name) {
+    document.getElementById('nameInput').focus();
+    document.getElementById('nameInput').style.borderColor = 'rgba(255,100,100,.5)';
+    setTimeout(() => {
+      document.getElementById('nameInput').style.borderColor = 'rgba(255,255,255,.12)';
+    }, 600);
+    return;
+  }
+  startRain(name);
+}
+
+document.getElementById('startBtn').addEventListener('click', doStart);
+document.getElementById('nameInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doStart();
+});
+document.getElementById('restart').addEventListener('click', restart);
+
+// 点击画面提前触发汇聚
+canvas.addEventListener('click', () => {
+  if (phase === STATE.RAIN) {
+    startConverge();
+  } else if (phase === STATE.FORMED) {
+    restart();
+  }
+});
+
+// ═══════════════════════════════════════════
+// 启动
+// ═══════════════════════════════════════════
+function loop() {
+  gameLoop();
+  requestAnimationFrame(loop);
+}
+
+render(); // 背景微弱雨丝
+loop();   // 游戏逻辑
+
+document.getElementById('nameInput').focus();
+console.log('💚 代码雨表白已就绪');
+console.log('   输入名字 → 代码雨 → 汇聚成形 → 浪漫揭示');
+</script>
+</body>
+</html>

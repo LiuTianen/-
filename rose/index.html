@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌹 玫瑰线 · Rose Curve</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0d1a; color: #d4d4d4;
+    font-family: -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; overflow-x: hidden;
+  }
+  h1 {
+    font-family: "Georgia", "Noto Serif SC", serif;
+    font-size: 28px; color: #c9a96e; letter-spacing: 3px;
+    margin: 24px 0 4px; font-weight: 400;
+  }
+  .subtitle {
+    font-size: 13px; color: #666; margin-bottom: 12px;
+    font-style: italic;
+  }
+  canvas {
+    border-radius: 16px;
+    box-shadow: 0 0 60px rgba(180, 60, 80, 0.15);
+  }
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
+    justify-content: center; margin: 20px 16px; max-width: 600px;
+  }
+  .control-group {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .control-group label {
+    font-size: 11px; color: #888; letter-spacing: 1px;
+  }
+  input[type="range"] {
+    -webkit-appearance: none; width: 140px; height: 4px;
+    background: #2a2a3a; border-radius: 2px; outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    border-radius: 50%; background: #c9a96e; cursor: pointer;
+    box-shadow: 0 0 10px rgba(201, 169, 110, 0.4);
+  }
+  .k-value {
+    font-size: 22px; color: #c9a96e; font-weight: 700;
+    font-family: "Georgia", serif; min-width: 40px; text-align: center;
+  }
+  button {
+    background: #c9a96e; color: #0d0d1a; border: none;
+    padding: 8px 20px; border-radius: 20px; font-size: 13px;
+    font-weight: 600; cursor: pointer; font-family: inherit;
+    transition: all .2s; letter-spacing: 1px;
+  }
+  button:hover { opacity: .85; transform: scale(1.03); }
+  button.paused { background: #444; color: #999; }
+  .info {
+    font-size: 12px; color: #555; margin-bottom: 24px;
+    max-width: 500px; text-align: center; line-height: 1.8;
+    padding: 0 16px;
+  }
+  .info em { color: #888; font-style: normal; }
+</style>
+</head>
+<body>
+
+<h1>玫 瑰 线</h1>
+<p class="subtitle">r = cos(kθ) · Rhodonea Curve</p>
+
+<canvas id="canvas" width="600" height="600"></canvas>
+
+<div class="controls">
+  <div class="control-group">
+    <label>花瓣参数 k</label>
+    <input type="range" id="kSlider" min="1" max="10" step="0.1" value="5">
+    <span class="k-value" id="kValue">5</span>
+  </div>
+  <button id="animBtn">⏸ 暂停</button>
+  <button id="resetBtn">🔄 重绘</button>
+</div>
+
+<p class="info">
+  奇数 <em>k</em> → <em>k</em> 片花瓣 &nbsp;|&nbsp;
+  偶数 <em>k</em> → <em>2k</em> 片花瓣 &nbsp;|&nbsp;
+  非整数 → 缠绕图案 &nbsp;|&nbsp;
+  拖动滑块变换花瓣数量
+</p>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const CX = W / 2, CY = H / 2;
+const SCALE = 240;
+
+let k = 5;
+let animating = true;
+let drawProgress = 0;       // 0..1, 当前绘制进度
+let totalPoints = 3000;
+let points = [];             // 预计算的玫瑰线点
+let particles = [];          // 粒子系统
+
+// ── 计算玫瑰线 ──
+function computeRose(k, numPoints) {
+  const pts = [];
+  let maxTheta = 2 * Math.PI;
+  // 非整数 k 需要更多周期闭合
+  if (k !== Math.floor(k)) {
+    // 近似找到分母
+    for (let d = 2; d <= 20; d++) {
+      if (Math.abs((k * d) % 1) < 0.001 || Math.abs((k * d) % 1 - 1) < 0.001) {
+        maxTheta = 2 * Math.PI * d;
+        break;
+      }
+    }
+  }
+  for (let i = 0; i <= numPoints; i++) {
+    const theta = (i / numPoints) * maxTheta;
+    const r = Math.cos(k * theta);
+    const x = CX + r * Math.cos(theta) * SCALE;
+    const y = CY + r * Math.sin(theta) * SCALE;
+    pts.push({ x, y, theta, r });
+  }
+  return pts;
+}
+
+// ── 渐变色 ──
+function getColor(progress, alpha = 1) {
+  // 从深玫红渐变到粉金
+  const r = Math.floor(200 + 55 * Math.sin(progress * Math.PI));
+  const g = Math.floor(30 + 45 * progress);
+  const b = Math.floor(50 + 60 * progress);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ── 初始化粒子 ──
+function spawnParticles() {
+  particles = [];
+  for (let i = 0; i < 80; i++) {
+    particles.push({
+      x: CX + (Math.random() - 0.5) * 500,
+      y: CY + (Math.random() - 0.5) * 500,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: (Math.random() - 0.5) * 0.5,
+      life: Math.random(),
+      maxLife: 0.5 + Math.random() * 1.5,
+      size: 0.5 + Math.random() * 1.5,
+    });
+  }
+}
+
+// ── 绘制背景光晕 ──
+function drawGlow() {
+  const gradient = ctx.createRadialGradient(CX, CY, 50, CX, CY, 300);
+  gradient.addColorStop(0, 'rgba(180, 60, 80, 0.06)');
+  gradient.addColorStop(0.5, 'rgba(180, 60, 80, 0.02)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ── 主绘制 ──
+let animationId;
+
+function draw(timestamp) {
+  ctx.clearRect(0, 0, W, H);
+
+  // 背景光晕
+  drawGlow();
+
+  // 更新进度
+  if (animating) {
+    drawProgress += 0.003;
+    if (drawProgress > 1) drawProgress = 0;
+  }
+
+  // 绘制玫瑰线（已画完的部分）
+  const visibleCount = Math.floor(drawProgress * points.length);
+  if (visibleCount > 1) {
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < visibleCount; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.strokeStyle = 'rgba(220, 60, 90, 0.7)';
+    ctx.lineWidth = 1.8;
+    ctx.shadowColor = 'rgba(220, 60, 90, 0.3)';
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 第二层：更细更亮的线
+    if (visibleCount > 10) {
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < visibleCount; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.strokeStyle = 'rgba(255, 140, 160, 0.3)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+  }
+
+  // 粒子效果
+  for (const p of particles) {
+    p.life += 0.005;
+    if (p.life > p.maxLife) {
+      p.life = 0;
+      p.x = CX + (Math.random() - 0.5) * 500;
+      p.y = CY + (Math.random() - 0.5) * 500;
+    }
+    p.x += p.vx;
+    p.y += p.vy;
+    const alpha = Math.sin(p.life / p.maxLife * Math.PI) * 0.5;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 180, 200, ${alpha})`;
+    ctx.fill();
+  }
+
+  // 绘制当前端点（画笔）
+  if (visibleCount > 0) {
+    const tip = points[Math.min(visibleCount, points.length - 1)];
+    ctx.beginPath();
+    ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = 'rgba(255, 200, 200, 0.8)';
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  animationId = requestAnimationFrame(draw);
+}
+
+// ── 事件处理 ──
+function reset(kVal) {
+  k = kVal !== undefined ? kVal : k;
+  points = computeRose(k, totalPoints);
+  drawProgress = 0;
+  document.getElementById('kValue').textContent =
+    Number.isInteger(k) ? k : k.toFixed(1);
+  document.getElementById('kSlider').value = k;
+}
+
+const kSlider = document.getElementById('kSlider');
+kSlider.addEventListener('input', () => {
+  const val = parseFloat(kSlider.value);
+  reset(val);
+});
+
+document.getElementById('animBtn').addEventListener('click', function() {
+  animating = !animating;
+  this.textContent = animating ? '⏸ 暂停' : '▶ 播放';
+  this.classList.toggle('paused', !animating);
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  reset(k);
+});
+
+// ── 启动 ──
+spawnParticles();
+reset(k);
+draw();
+
+// 响应窗口大小调整提示
+console.log('🌹 玫瑰线已就绪 · 拖动滑块变换花瓣');
+console.log('   奇数 k → k 片花瓣 | 偶数 k → 2k 片花瓣');
+</script>
+</body>
+</html>

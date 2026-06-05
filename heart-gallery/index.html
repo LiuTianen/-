@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>❤️ 心形方程画廊 · Heart Equation Gallery</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a14; color: #d4d4d4;
+    font-family: -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; overflow-x: hidden;
+  }
+  h1 {
+    font-family: "Georgia", "Noto Serif SC", serif;
+    font-size: 26px; color: #c07080; letter-spacing: 4px;
+    margin: 22px 0 2px; font-weight: 400;
+  }
+  .subtitle {
+    font-size: 12px; color: #665; margin-bottom: 8px;
+    font-style: italic; letter-spacing: 2px;
+  }
+
+  /* ── 画廊容器 ── */
+  .gallery {
+    position: relative; width: 600px; height: 460px;  /* 600+60 下方信息区 */
+    margin: 8px auto 0;
+  }
+  canvas {
+    display: block; border-radius: 16px;
+    box-shadow: 0 0 50px rgba(180, 60, 80, 0.08);
+  }
+
+  /* ── 方程信息卡片 ── */
+  .info-card {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(to top, rgba(10,10,20,0.95), rgba(10,10,20,0.7));
+    border-radius: 0 0 16px 16px; padding: 12px 20px 14px;
+    text-align: center; transition: all 0.4s ease;
+    pointer-events: none;
+  }
+  .info-card .eq-name {
+    font-family: "Georgia", serif; font-size: 18px;
+    letter-spacing: 2px; margin-bottom: 3px;
+    transition: color 0.4s;
+  }
+  .info-card .eq-formula {
+    font-size: 12px; color: #888; font-family: "Courier New", monospace;
+    margin-bottom: 6px; letter-spacing: 0.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .info-card .eq-quote {
+    font-size: 13px; font-style: italic;
+    line-height: 1.6; color: #999;
+    transition: color 0.4s;
+  }
+  .info-card .eq-counter {
+    font-size: 10px; color: #555; margin-top: 4px;
+  }
+
+  /* ── 控制栏 ── */
+  .controls {
+    display: flex; gap: 12px; align-items: center;
+    justify-content: center; margin: 16px;
+  }
+  .controls button {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1px solid #333; background: transparent;
+    color: #999; font-size: 18px; cursor: pointer;
+    transition: all .25s; display: flex; align-items: center;
+    justify-content: center; font-family: inherit;
+  }
+  .controls button:hover {
+    border-color: #c07080; color: #c07080;
+    box-shadow: 0 0 12px rgba(192,112,128,0.2);
+  }
+  .controls button.active {
+    background: rgba(192,112,128,0.15); border-color: #c07080; color: #c07080;
+  }
+  .dot-nav { display: flex; gap: 6px; }
+  .dot-nav .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #333; cursor: pointer; transition: all .3s;
+  }
+  .dot-nav .dot.active { background: #c07080; box-shadow: 0 0 8px rgba(192,112,128,0.5);
+    transform: scale(1.3); }
+
+  .footer {
+    font-size: 11px; color: #444; margin-bottom: 20px;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<h1>❤ 心形方程画廊</h1>
+<p class="subtitle">— Heart Equation Gallery —</p>
+
+<div class="gallery">
+  <canvas id="canvas" width="600" height="400"></canvas>
+  <div class="info-card" id="infoCard">
+    <div class="eq-name" id="eqName"></div>
+    <div class="eq-formula" id="eqFormula"></div>
+    <div class="eq-quote" id="eqQuote"></div>
+    <div class="eq-counter" id="eqCounter"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button id="prevBtn" title="上一个">◀</button>
+  <div class="dot-nav" id="dotNav"></div>
+  <button id="nextBtn" title="下一个">▶</button>
+  <button id="autoBtn" class="active" title="自动轮播">⟳</button>
+</div>
+
+<p class="footer">用数学写诗 · 以方程传情</p>
+
+<script>
+// ═══════════════════════════════════════════
+// 心形方程数据集
+// ═══════════════════════════════════════════
+const equations = [
+  {
+    id: 'descartes',
+    name: '笛卡尔心形线',
+    nameEn: "René Descartes' Cardioid",
+    formula: 'r = 1 + cos θ',
+    type: 'polar',
+    quote: '"Je pense, donc je suis.\nEt je t\'aime."',
+    quoteCn: '我思故我在。而我爱你。',
+    // 配色
+    hueBase: 0.96,  // 深红
+    hueEnd: 0.02,
+    accent: '#e06070',
+    // 极坐标函数
+    rFn: (t) => 1 + Math.cos(t),
+    scale: 110,
+    maxT: 2 * Math.PI,
+  },
+  {
+    id: 'implicit',
+    name: '隐式心形方程',
+    nameEn: 'The Implicit Heart',
+    formula: '(x² + y² − 1)³ = x²y³',
+    type: 'implicit',
+    quote: '"你是我解不开的方程，\n也是我不愿解开的谜。"',
+    quoteCn: '',
+    hueBase: 0.93,
+    hueEnd: 0.98,
+    accent: '#d04860',
+    scaleX: 130,
+    scaleY: 130,
+  },
+  {
+    id: 'parametric',
+    name: '参数心形',
+    nameEn: 'Parametric Heart',
+    formula: 'x = 16sin³t · y = 13cost − 5cos2t − 2cos3t − cos4t',
+    type: 'parametric',
+    quote: '"每一条参数曲线，\n都在描摹你的轮廓。"',
+    quoteCn: '',
+    hueBase: 0.00,
+    hueEnd: 0.06,
+    accent: '#ff6070',
+    xFn: (t) => 16 * Math.pow(Math.sin(t), 3),
+    yFn: (t) => 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t),
+    scale: 12,
+    maxT: 2 * Math.PI,
+  },
+  {
+    id: 'tilted',
+    name: '倾斜之心',
+    nameEn: 'Tilted Heart',
+    formula: 'r = 1 − sin θ',
+    type: 'polar',
+    quote: '"原点是我的心，\n你是我唯一的极角。"',
+    quoteCn: '',
+    hueBase: 0.88,
+    hueEnd: 0.94,
+    accent: '#d05080',
+    rFn: (t) => 1 - Math.sin(t),
+    scale: 110,
+    maxT: 2 * Math.PI,
+  },
+  {
+    id: 'fancy',
+    name: '繁花心形',
+    nameEn: 'Blossom Heart',
+    formula: 'r = sinθ·√|cosθ|/(sinθ+7/5) − 2sinθ + 2',
+    type: 'polar',
+    quote: '"数学家的浪漫，\n是把你写进最美的方程。"',
+    quoteCn: '',
+    hueBase: 0.05,
+    hueEnd: 0.12,
+    accent: '#ff9070',
+    rFn: (t) => {
+      const denom = Math.sin(t) + 7/5;
+      if (Math.abs(denom) < 0.001) return 0;
+      return Math.sin(t) * Math.sqrt(Math.abs(Math.cos(t))) / denom - 2 * Math.sin(t) + 2;
+    },
+    scale: 70,
+    maxT: 2 * Math.PI,
+  },
+  {
+    id: 'root',
+    name: '爱之根式',
+    nameEn: 'Radical Love',
+    formula: 'x² + (y − ∛x²)² = 1',
+    type: 'implicit',
+    quote: '"你的名字开平方，\n解出来全是爱。"',
+    quoteCn: '',
+    hueBase: 0.92,
+    hueEnd: 0.97,
+    accent: '#e05060',
+    scaleX: 130,
+    scaleY: 130,
+  },
+];
+
+// ═══════════════════════════════════════════
+// 状态
+// ═══════════════════════════════════════════
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const CX = W / 2, CY = H / 2 - 15; // 微调上移，给卡片留空间
+
+let currentIdx = 0;
+let autoPlay = true;
+let autoTimer = null;
+let animFrame = null;
+let drawProgress = 0;
+let animating = true;
+let points = [];
+let particles = [];
+let implicitImageData = null; // 隐式方程的预渲染
+let implicitPixels = [];      // 隐式方程像素坐标（用于动画展现）
+
+// ═══════════════════════════════════════════
+// 计算极坐标/参数方程的点集
+// ═══════════════════════════════════════════
+function computePoints(eq, numPoints = 4000) {
+  const pts = [];
+  const maxT = eq.maxT || 2 * Math.PI;
+
+  if (eq.type === 'polar') {
+    for (let i = 0; i <= numPoints; i++) {
+      const t = (i / numPoints) * maxT;
+      const r = eq.rFn(t) * eq.scale;
+      const x = CX + r * Math.cos(t);
+      const y = CY + r * Math.sin(t);
+      pts.push({ x, y });
+    }
+  } else if (eq.type === 'parametric') {
+    for (let i = 0; i <= numPoints; i++) {
+      const t = (i / numPoints) * maxT;
+      const x = CX + eq.xFn(t) * eq.scale;
+      const y = CY - eq.yFn(t) * eq.scale;
+      pts.push({ x, y });
+    }
+  }
+  return pts;
+}
+
+// ═══════════════════════════════════════════
+// 隐式方程预渲染
+// ═══════════════════════════════════════════
+function renderImplicit(eq) {
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = W; offCanvas.height = H;
+  const octx = offCanvas.getContext('2d');
+
+  const pixels = [];
+  const step = 2; // 采样步长
+  const sx = eq.scaleX, sy = eq.scaleY;
+
+  if (eq.id === 'implicit') {
+    // (x² + y² − 1)³ = x²y³
+    // f(x,y) = (x² + y² − 1)³ − x²y³  → 内部 f < 0
+    for (let py = 0; py < H; py += step) {
+      for (let px = 0; px < W; px += step) {
+        const x = (px - CX) / sx;
+        const y = -(py - CY) / sy;
+        const x2 = x * x, y2 = y * y;
+        const f = Math.pow(x2 + y2 - 1, 3) - x2 * y2 * y;
+        if (f < 0) {
+          pixels.push({ x: px, y: py });
+        }
+      }
+    }
+  } else if (eq.id === 'root') {
+    // x² + (y − ∛(x²))² = 1
+    // f(x,y) = x² + (y − ∛(x²))² − 1 → 内部 f < 0
+    for (let py = 0; py < H; py += step) {
+      for (let px = 0; px < W; px += step) {
+        const x = (px - CX) / sx;
+        const y = -(py - CY) / sy;
+        const x2 = x * x;
+        const cb = Math.cbrt(x2);
+        const f = x2 + (y - cb) * (y - cb) - 1;
+        if (f < 0) {
+          pixels.push({ x: px, y: py });
+        }
+      }
+    }
+  }
+
+  // 按距中心距离排序（螺旋展开效果）
+  pixels.sort((a, b) => {
+    const da = (a.x-CX)*(a.x-CX) + (a.y-CY)*(a.y-CY);
+    const db = (b.x-CX)*(b.x-CX) + (b.y-CY)*(b.y-CY);
+    return da - db;
+  });
+
+  return pixels;
+}
+
+// ═══════════════════════════════════════════
+// 颜色
+// ═══════════════════════════════════════════
+function getColor(eq, progress, alpha = 1) {
+  const hue = eq.hueBase + (eq.hueEnd - eq.hueBase) * progress;
+  const h = ((hue % 1) + 1) % 1;
+  const s = 0.75;
+  const v = 0.7 + 0.3 * (1 - Math.abs(progress - 0.5) * 2);
+  const i = Math.floor(h * 6), f = h * 6 - i;
+  const p = v * (1 - s), q = v * (1 - f * s), t_ = v * (1 - (1 - f) * s);
+  let r, g, b;
+  switch (i % 6) {
+    case 0: r=v; g=t_; b=p; break; case 1: r=q; g=v; b=p; break;
+    case 2: r=p; g=v; b=t_; break; case 3: r=p; g=q; b=v; break;
+    case 4: r=t_; g=p; b=v; break; case 5: r=v; g=p; b=q; break;
+  }
+  return `rgba(${Math.floor(r*255)},${Math.floor(g*255)},${Math.floor(b*255)},${alpha})`;
+}
+
+// ═══════════════════════════════════════════
+// 粒子
+// ═══════════════════════════════════════════
+function spawnParticles() {
+  particles = [];
+  for (let i = 0; i < 40; i++) {
+    particles.push({
+      x: CX + (Math.random() - 0.5) * 500,
+      y: CY + (Math.random() - 0.5) * 400,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3 - 0.1,
+      life: Math.random(),
+      maxLife: 0.5 + Math.random() * 2,
+      size: 0.3 + Math.random() * 1.2,
+    });
+  }
+}
+
+// ═══════════════════════════════════════════
+// 主绘制循环
+// ═══════════════════════════════════════════
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  const eq = equations[currentIdx];
+
+  // 背景光晕
+  const grad = ctx.createRadialGradient(CX, CY, 30, CX, CY, 250);
+  grad.addColorStop(0, eq.accent + '0c');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // 更新绘制进度
+  if (animating) {
+    drawProgress += eq.type === 'implicit' ? 0.0015 : 0.002;
+    if (drawProgress > 1) drawProgress = 0;
+  }
+
+  if (eq.type === 'implicit') {
+    // ── 隐式方程：像素螺旋展现 ──
+    const totalPx = implicitPixels.length;
+    const visible = Math.floor(drawProgress * totalPx);
+    const step = 2;
+
+    // 批量绘制以提高性能
+    for (let i = Math.max(0, visible - 3000); i < visible; i++) {
+      const px = implicitPixels[i];
+      const alpha = 0.85 + 0.15 * (i / Math.max(visible, 1));
+      ctx.fillStyle = getColor(eq, i / totalPx * 0.7, alpha);
+      ctx.fillRect(px.x, px.y, step, step);
+    }
+  } else {
+    // ── 极坐标/参数方程：线描动画 ──
+    const visibleCount = Math.floor(drawProgress * points.length);
+    if (visibleCount > 1) {
+      // 主线条
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < visibleCount; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+      ctx.strokeStyle = getColor(eq, drawProgress * 0.6, 0.75);
+      ctx.lineWidth = 2;
+      ctx.shadowColor = getColor(eq, drawProgress * 0.6, 0.25);
+      ctx.shadowBlur = 8;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // 光晕层
+      if (visibleCount > 15) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < visibleCount; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
+        }
+        ctx.strokeStyle = getColor(eq, drawProgress * 0.4, 0.2);
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+
+      // 笔尖
+      const tip = points[Math.min(visibleCount, points.length - 1)];
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = eq.accent + 'cc';
+      ctx.shadowBlur = 14;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  // 粒子
+  for (const p of particles) {
+    p.life += 0.003;
+    if (p.life > p.maxLife) {
+      p.life = 0;
+      p.x = CX + (Math.random() - 0.5) * 500;
+      p.y = CY + (Math.random() - 0.5) * 400;
+    }
+    p.x += p.vx; p.y += p.vy;
+    const alpha = Math.sin(p.life / p.maxLife * Math.PI) * 0.3;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = eq.accent + Math.floor(alpha * 80).toString(16).padStart(2, '0');
+    ctx.fill();
+  }
+
+  animFrame = requestAnimationFrame(draw);
+}
+
+// ═══════════════════════════════════════════
+// 切换方程
+// ═══════════════════════════════════════════
+function switchTo(idx) {
+  currentIdx = idx;
+  const eq = equations[idx];
+
+  // 更新数据
+  if (eq.type === 'implicit') {
+    implicitPixels = renderImplicit(eq);
+    points = [];
+  } else {
+    points = computePoints(eq);
+    implicitPixels = [];
+  }
+  drawProgress = 0;
+  animating = true;
+
+  // 更新 UI
+  updateUI(eq, idx);
+
+  // 更新颜色主题
+  document.getElementById('infoCard').style.setProperty('--accent', eq.accent);
+  document.querySelector('.gallery canvas').style.boxShadow =
+    `0 0 50px ${eq.accent}14`;
+
+  // 刷新导航点
+  document.querySelectorAll('.dot').forEach((d, i) => {
+    d.classList.toggle('active', i === idx);
+  });
+
+  // 重置自动播放计时器
+  resetAutoTimer();
+}
+
+function updateUI(eq, idx) {
+  const nameEl = document.getElementById('eqName');
+  const formulaEl = document.getElementById('eqFormula');
+  const quoteEl = document.getElementById('eqQuote');
+  const counterEl = document.getElementById('eqCounter');
+
+  nameEl.textContent = eq.name;
+  nameEl.style.color = eq.accent;
+  formulaEl.textContent = eq.formula;
+  quoteEl.innerHTML = eq.quote.replace(/\n/g, '<br>');
+  quoteEl.style.color = eq.accent + 'aa';
+  counterEl.textContent = `${idx + 1} / ${equations.length}`;
+}
+
+// ═══════════════════════════════════════════
+// 自动播放
+// ═══════════════════════════════════════════
+function resetAutoTimer() {
+  if (autoTimer) clearTimeout(autoTimer);
+  if (!autoPlay) return;
+  autoTimer = setTimeout(() => {
+    const next = (currentIdx + 1) % equations.length;
+    switchTo(next);
+  }, 7000);
+}
+
+function toggleAuto() {
+  autoPlay = !autoPlay;
+  const btn = document.getElementById('autoBtn');
+  btn.classList.toggle('active', autoPlay);
+  if (autoPlay) {
+    resetAutoTimer();
+  } else if (autoTimer) {
+    clearTimeout(autoTimer);
+    autoTimer = null;
+  }
+}
+
+// ═══════════════════════════════════════════
+// 初始化导航点
+// ═══════════════════════════════════════════
+function buildDots() {
+  const nav = document.getElementById('dotNav');
+  nav.innerHTML = '';
+  equations.forEach((_, i) => {
+    const dot = document.createElement('span');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dot.addEventListener('click', () => switchTo(i));
+    nav.appendChild(dot);
+  });
+}
+
+// ═══════════════════════════════════════════
+// 事件绑定
+// ═══════════════════════════════════════════
+document.getElementById('prevBtn').addEventListener('click', () => {
+  const prev = (currentIdx - 1 + equations.length) % equations.length;
+  switchTo(prev);
+});
+document.getElementById('nextBtn').addEventListener('click', () => {
+  const next = (currentIdx + 1) % equations.length;
+  switchTo(next);
+});
+document.getElementById('autoBtn').addEventListener('click', toggleAuto);
+
+// 键盘导航
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft') {
+    switchTo((currentIdx - 1 + equations.length) % equations.length);
+  } else if (e.key === 'ArrowRight') {
+    switchTo((currentIdx + 1) % equations.length);
+  } else if (e.key === ' ') {
+    e.preventDefault(); toggleAuto();
+  }
+});
+
+// 点击 canvas 切换动画暂停/播放
+canvas.addEventListener('click', () => {
+  animating = !animating;
+});
+
+// ═══════════════════════════════════════════
+// 启动
+// ═══════════════════════════════════════════
+spawnParticles();
+buildDots();
+switchTo(0);
+draw();
+
+console.log('❤️ 心形方程画廊已就绪');
+console.log('   6条心形方程 | 自动轮播 | 键盘 ← → 空格');
+</script>
+</body>
+</html>

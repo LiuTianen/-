@@ -28,6 +28,19 @@ Temple Fay 的参数方程 — 展翅般的优雅图案。
 python3 butterfly/butterfly.py 2   # 2倍精度
 ```
 
+### ❤️ 心形方程画廊 · Heart Equation Gallery
+6 条经典心形数学方程 — 交互切换，每条配一句浪漫情话。
+
+- [`heart-gallery/index.html`](heart-gallery/index.html) — Web Canvas 画廊
+  - ⬅️➡️ 6 条方程自由切换（笛卡尔心形线 / 隐式心形 / 参数心形 / 倾斜之心 / 繁花心形 / 爱之根式）
+  - ⟳ 自动轮播 + 键盘操作
+  - 🎨 每条独立配色，粒子光晕
+
+```bash
+# 浏览器直接打开即可
+open heart-gallery/index.html
+```
+
 ### ❤️ 爱心代码
 多种方式绘制爱心的 Python 脚本集合。
 

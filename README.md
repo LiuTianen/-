@@ -41,6 +41,20 @@ python3 butterfly/butterfly.py 2   # 2倍精度
 open heart-gallery/index.html
 ```
 
+### ☁️ 云朵生成器 · Cloud Generator
+Perlin 噪声算法生成独一无二的云朵 — 每朵云有唯一 ID。
+
+- [`cloud/cloud.py`](cloud/cloud.py) — Python turtle 版（纯内置库）
+- [`cloud/index.html`](cloud/index.html) — Web Canvas 交互版
+  - 🎲 一键生成新云 · 📸 截图保存
+  - 🌅☀️🌇🌙 四种天空主题（朝霞/晴空/黄昏/夜空）
+  - 💫 云朵呼吸飘移 + 唯一 ID 水印
+
+```bash
+python3 cloud/cloud.py           # 随机云朵
+python3 cloud/cloud.py 42 dawn   # 种子 + 主题
+```
+
 ### ❤️ 爱心代码
 多种方式绘制爱心的 Python 脚本集合。
 

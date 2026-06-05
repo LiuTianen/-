@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>☁️ 云朵生成器 · Cloud Generator</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    min-height:100vh;overflow-x:hidden;
+    transition:background .6s;
+    background:#1a3050;
+  }
+  h1{
+    font-family:"Georgia","Noto Serif SC",serif;
+    font-size:22px;letter-spacing:4px;font-weight:400;
+    margin:18px 0 2px;text-shadow:0 0 20px rgba(255,255,255,.15);
+  }
+  .subtitle{font-size:11px;letter-spacing:2px;margin-bottom:6px;opacity:.6;}
+
+  canvas{border-radius:16px;box-shadow:0 0 60px rgba(0,0,0,.25);}
+
+  /* ── 云 ID ── */
+  .cloud-id{
+    font-family:"Courier New",monospace;font-size:13px;
+    letter-spacing:3px;margin:8px 0 2px;opacity:.7;
+    transition:all .4s;
+  }
+
+  /* ── 主题选择 ── */
+  .themes{
+    display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0;
+  }
+  .themes button{
+    padding:6px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.15);
+    background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);
+    font-size:12px;cursor:pointer;transition:all .25s;font-family:inherit;
+    backdrop-filter:blur(4px);
+  }
+  .themes button:hover{border-color:rgba(255,255,255,.35);color:#fff;}
+  .themes button.active{
+    border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.15);color:#fff;
+  }
+
+  /* ── 操作按钮 ── */
+  .actions{display:flex;gap:12px;margin:8px 0 20px;}
+  .actions button{
+    padding:9px 22px;border-radius:20px;border:none;
+    font-size:13px;font-weight:600;cursor:pointer;transition:all .25s;
+    font-family:inherit;letter-spacing:1px;
+  }
+  .btn-gen{background:rgba(255,255,255,.9);color:#1a3050;}
+  .btn-gen:hover{background:#fff;transform:scale(1.03);box-shadow:0 0 20px rgba(255,255,255,.2);}
+  .btn-shot{background:rgba(255,255,255,.12);color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.25);}
+  .btn-shot:hover{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.4);}
+
+  .tagline{
+    font-size:11px;opacity:.35;letter-spacing:2px;margin-bottom:16px;
+    transition:opacity .4s;
+  }
+</style>
+</head>
+<body>
+
+<h1 id="title">☁️ 云 朵 生 成 器</h1>
+<p class="subtitle" id="subtitle">— Cloud Generator —</p>
+
+<canvas id="canvas" width="600" height="420"></canvas>
+<div class="cloud-id" id="cloudId">☁️ ---</div>
+
+<div class="themes">
+  <button data-theme="dawn" class="active">🌅 朝霞</button>
+  <button data-theme="clear">☀️ 晴空</button>
+  <button data-theme="dusk">🌇 黄昏</button>
+  <button data-theme="night">🌙 夜空</button>
+</div>
+
+<div class="actions">
+  <button class="btn-gen" id="genBtn">🎲 生成新云</button>
+  <button class="btn-shot" id="shotBtn">📸 截图保存</button>
+</div>
+
+<p class="tagline" id="tagline">✨ 这片云只属于你 ✨</p>
+
+<script>
+// ═══════════════════════════════════════════
+// Perlin Noise (2D)
+// ═══════════════════════════════════════════
+const PERM = new Uint8Array(512);
+const GRAD3 = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+
+function buildPerm(seed) {
+  // Simple seeded shuffle
+  const p = [];
+  for (let i = 0; i < 256; i++) p[i] = i;
+  let s = seed;
+  for (let i = 255; i > 0; i--) {
+    s = (s * 16807 + 0) % 2147483647;
+    const j = s % (i + 1);
+    [p[i], p[j]] = [p[j], p[i]];
+  }
+  for (let i = 0; i < 512; i++) PERM[i] = p[i & 255];
+}
+
+function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+function lerp(a,b,t) { return a + t * (b - a); }
+
+function dot2(g, x, y) { return g[0]*x + g[1]*y; }
+
+function noise2D(x, y) {
+  const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
+  const xf = x - Math.floor(x), yf = y - Math.floor(y);
+  const u = fade(xf), v = fade(yf);
+  const aa = PERM[PERM[X] + Y];
+  const ab = PERM[PERM[X] + Y + 1];
+  const ba = PERM[PERM[X + 1] + Y];
+  const bb = PERM[PERM[X + 1] + Y + 1];
+  return lerp(
+    lerp(dot2(GRAD3[aa & 7], xf, yf), dot2(GRAD3[ba & 7], xf-1, yf), u),
+    lerp(dot2(GRAD3[ab & 7], xf, yf-1), dot2(GRAD3[bb & 7], xf-1, yf-1), u),
+    v
+  );
+}
+
+function fbm(x, y, octaves=6, lacunarity=2.0, gain=0.5) {
+  let val = 0, amp = 1, freq = 1, max = 0;
+  for (let i = 0; i < octaves; i++) {
+    val += noise2D(x * freq, y * freq) * amp;
+    max += amp;
+    amp *= gain;
+    freq *= lacunarity;
+  }
+  return val / max; // normalize to [-1, 1]
+}
+
+// ═══════════════════════════════════════════
+// 天空主题
+// ═══════════════════════════════════════════
+const themes = {
+  dawn: {
+    skyTop: '#1a2240', skyBot: '#604050',
+    titleColor: '#d0a090',
+    cloudTintTop: [255, 235, 220], cloudTintBot: [220, 180, 190],
+    id: 'dawn'
+  },
+  clear: {
+    skyTop: '#3a6fb5', skyBot: '#8dc8e8',
+    titleColor: '#ffffff',
+    cloudTintTop: [255, 255, 255], cloudTintBot: [220, 230, 240],
+    id: 'clear'
+  },
+  dusk: {
+    skyTop: '#1a1030', skyBot: '#704060',
+    titleColor: '#e0a080',
+    cloudTintTop: [255, 210, 180], cloudTintBot: [200, 140, 160],
+    id: 'dusk'
+  },
+  night: {
+    skyTop: '#050510', skyBot: '#101830',
+    titleColor: '#8899cc',
+    cloudTintTop: [180, 190, 220], cloudTintBot: [120, 130, 170],
+    id: 'night'
+  },
+};
+
+let currentTheme = 'dawn';
+
+// ═══════════════════════════════════════════
+// 状态
+// ═══════════════════════════════════════════
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const CX = W/2, CY = H/2;
+
+let seed = Math.floor(Math.random() * 2147483647);
+let cloudImageData = null;
+let cloudId = '';
+let breathPhase = 0;
+let driftX = 0;
+
+// ═══════════════════════════════════════════
+// 云朵生成
+// ═══════════════════════════════════════════
+function smoothstep(edge0, edge1, x) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function generateCloud(s) {
+  buildPerm(s);
+
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = W; offCanvas.height = H;
+  const octx = offCanvas.getContext('2d');
+
+  const imgData = octx.createImageData(W, H);
+  const data = imgData.data;
+
+  // 云参数
+  const thresh = -0.05 + (s % 100) / 400;  // -0.05 ~ 0.20
+  const edgeSoft = 0.22 + (s % 30) / 300;   // 0.22 ~ 0.32
+  const scaleX = 0.003 + (s % 20) / 80000;  // 频率
+  const scaleY = 0.004 + (s % 25) / 70000;
+  const stretchX = 1.3 + (s % 40) / 100;     // 水平拉伸
+  const stretchY = 0.85 + (s % 20) / 200;
+  const offsetY = -30 + (s % 50);            // 垂直偏移
+  const octaves = 5 + (s % 3);               // 5-7
+
+  const th = themes[currentTheme];
+  const topTint = th.cloudTintTop, botTint = th.cloudTintBot;
+
+  for (let py = 0; py < H; py++) {
+    for (let px = 0; px < W; px++) {
+      const idx = (py * W + px) * 4;
+
+      // 归一化坐标
+      const nx = (px - CX) / (W * 0.45) * stretchX;
+      const ny = (py - CY - offsetY) / (H * 0.45) * stretchY;
+
+      // FBM 噪声
+      const n = fbm(nx * scaleX * W, ny * scaleY * H, octaves);
+
+      // 边缘椭圆遮罩
+      const dist = Math.sqrt(nx * nx + ny * ny);
+      const mask = 1 - smoothstep(0.55, 0.85, dist);
+
+      // 云朵阈值
+      const cloudiness = smoothstep(thresh - edgeSoft, thresh + edgeSoft, n) * mask;
+
+      if (cloudiness < 0.01) {
+        data[idx + 3] = 0;
+        continue;
+      }
+
+      // 立体光影
+      const heightFactor = 1 - (py / H) * 0.35; // 上方更亮
+      const brightness = 0.7 + 0.3 * cloudiness * heightFactor;
+      const r = lerp(botTint[0], topTint[0], heightFactor) * brightness;
+      const g = lerp(botTint[1], topTint[1], heightFactor) * brightness;
+      const b = lerp(botTint[2], topTint[2], heightFactor) * brightness;
+
+      data[idx] = Math.min(255, r);
+      data[idx + 1] = Math.min(255, g);
+      data[idx + 2] = Math.min(255, b);
+      data[idx + 3] = Math.floor(cloudiness * 240); // alpha
+    }
+  }
+
+  octx.putImageData(imgData, 0, 0);
+  return offCanvas;
+}
+
+// ═══════════════════════════════════════════
+// ID 生成
+// ═══════════════════════════════════════════
+function genId(s) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let id = '';
+  let v = s >>> 0;
+  for (let i = 0; i < 6; i++) {
+    id = chars[v % chars.length] + id;
+    v = Math.floor(v / chars.length) + (v * 13 + 7);
+  }
+  return 'CLOUD-' + id;
+}
+
+// ═══════════════════════════════════════════
+// 绘制天空
+// ═══════════════════════════════════════════
+function drawSky() {
+  const th = themes[currentTheme];
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, th.skyTop);
+  grad.addColorStop(1, th.skyBot);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // 夜空星星
+  if (currentTheme === 'night') {
+    // 使用种子生成固定星星
+    const starSeed = seed + 999;
+    let s = starSeed;
+    for (let i = 0; i < 60; i++) {
+      s = (s * 16807 + 0) % 2147483647;
+      const sx = (s % W);
+      s = (s * 16807 + 0) % 2147483647;
+      const sy = (s % (H * 0.7));
+      s = (s * 16807 + 0) % 2147483647;
+      const brightness = 0.3 + (s % 70) / 100;
+      const size = 0.3 + (s % 15) / 10;
+      ctx.beginPath();
+      ctx.arc(sx, sy, size, 0, Math.PI*2);
+      ctx.fillStyle = `rgba(200,220,255,${brightness})`;
+      ctx.fill();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════
+// 主渲染
+// ═══════════════════════════════════════════
+let animFrame;
+
+function render() {
+  drawSky();
+
+  if (!cloudImageData) return;
+
+  // 呼吸 + 飘移
+  breathPhase += 0.003;
+  const breath = 1 + Math.sin(breathPhase) * 0.015;
+  driftX += 0.06;
+  const drift = Math.sin(driftX * 0.015) * 6;
+
+  ctx.save();
+  ctx.translate(CX + drift, CY);
+  ctx.scale(breath, breath);
+  ctx.translate(-CX, -CY);
+  ctx.drawImage(cloudImageData, 0, 0);
+  ctx.restore();
+
+  animFrame = requestAnimationFrame(render);
+}
+
+// ═══════════════════════════════════════════
+// 生成新云
+// ═══════════════════════════════════════════
+function newCloud(newSeed) {
+  if (newSeed !== undefined) seed = newSeed;
+  else seed = Math.floor(Math.random() * 2147483647);
+
+  cloudImageData = generateCloud(seed);
+  cloudId = genId(seed);
+  document.getElementById('cloudId').textContent = '☁️ ' + cloudId;
+  breathPhase = Math.random() * Math.PI * 2;
+  driftX = Math.random() * 100;
+  document.getElementById('tagline').style.opacity = '0';
+  setTimeout(() => { document.getElementById('tagline').style.opacity = '.35'; }, 400);
+}
+
+// ═══════════════════════════════════════════
+// 截图
+// ═══════════════════════════════════════════
+function takeScreenshot() {
+  // 合并绘制到临时 canvas
+  const tmp = document.createElement('canvas');
+  tmp.width = W; tmp.height = H + 70;
+  const tctx = tmp.getContext('2d');
+
+  // 天空
+  const th = themes[currentTheme];
+  const grad = tctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, th.skyTop);
+  grad.addColorStop(1, th.skyBot);
+  tctx.fillStyle = grad;
+  tctx.fillRect(0, 0, W, H);
+
+  // 夜空星星
+  if (currentTheme === 'night') {
+    const starSeed = seed + 999;
+    let s = starSeed;
+    for (let i = 0; i < 60; i++) {
+      s = (s * 16807 + 0) % 2147483647;
+      const sx = (s % W);
+      s = (s * 16807 + 0) % 2147483647;
+      const sy = (s % (H * 0.7));
+      s = (s * 16807 + 0) % 2147483647;
+      const br = 0.3 + (s % 70) / 100;
+      const sz = 0.3 + (s % 15) / 10;
+      tctx.beginPath();
+      tctx.arc(sx, sy, sz, 0, Math.PI*2);
+      tctx.fillStyle = `rgba(200,220,255,${br})`;
+      tctx.fill();
+    }
+  }
+
+  // 云
+  if (cloudImageData) {
+    tctx.drawImage(cloudImageData, 0, 0);
+  }
+
+  // 底部信息栏
+  tctx.fillStyle = 'rgba(0,0,0,0.35)';
+  tctx.fillRect(0, H, W, 70);
+  tctx.fillStyle = '#fff';
+  tctx.font = '16px "Courier New", monospace';
+  tctx.textAlign = 'center';
+  tctx.fillText('☁️ ' + cloudId, W/2, H + 28);
+  tctx.font = '11px -apple-system, "PingFang SC", sans-serif';
+  tctx.fillStyle = 'rgba(255,255,255,0.5)';
+  tctx.fillText('这片云只属于你  ·  Cloud Generator', W/2, H + 52);
+
+  // 下载
+  const link = document.createElement('a');
+  link.download = `${cloudId}.png`;
+  link.href = tmp.toDataURL('image/png');
+  link.click();
+}
+
+// ═══════════════════════════════════════════
+// 主题切换
+// ═══════════════════════════════════════════
+function switchTheme(name) {
+  currentTheme = name;
+  const th = themes[name];
+  document.getElementById('title').style.color = th.titleColor;
+  document.getElementById('subtitle').style.color = th.titleColor + '88';
+  document.getElementById('cloudId').style.color = th.titleColor + 'aa';
+  document.getElementById('tagline').style.color = th.titleColor + '66';
+
+  document.querySelectorAll('.themes button').forEach(b => {
+    b.classList.toggle('active', b.dataset.theme === name);
+  });
+
+  // 重新渲染云（颜色变了）
+  if (seed) cloudImageData = generateCloud(seed);
+}
+
+// ═══════════════════════════════════════════
+// 事件
+// ═══════════════════════════════════════════
+document.getElementById('genBtn').addEventListener('click', () => newCloud());
+document.getElementById('shotBtn').addEventListener('click', takeScreenshot);
+
+document.querySelectorAll('.themes button').forEach(btn => {
+  btn.addEventListener('click', () => switchTheme(btn.dataset.theme));
+});
+
+// 首次加载
+newCloud(seed);
+switchTheme('dawn');
+render();
+
+console.log('☁️ 云朵生成器已就绪 · Cloud ID:', cloudId);
+console.log('   🎲 生成新云 | 🌅☀️🌇🌙 四种天空 | 📸 截图保存');
+</script>
+</body>
+</html>
